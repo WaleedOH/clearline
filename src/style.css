@@ -30,7 +30,7 @@ body {
 }
 
 #panel {
-  width: 440px; flex-shrink: 0; overflow-y: auto;
+  width: 500px; flex-shrink: 0; overflow-y: auto;
   background: var(--panel); border-left: 1px solid var(--line);
   padding: 16px;
 }
@@ -49,13 +49,13 @@ button:hover, .button:hover { border-color: #3a434d; }
 button.on { border-color: var(--accent); color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: #04121f; font-weight: 600; }
 
-#tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .tile { position: relative; cursor: pointer; border: 2px solid transparent; border-radius: 6px; overflow: hidden; background: #000; }
 .tile.active { border-color: var(--accent); }
 .tile canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }
 .tile span {
   position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 4px;
-  background: rgba(0, 0, 0, 0.6); font-size: 11px;
+  background: rgba(0, 0, 0, 0.6); font-size: 10px;
 }
 
 #truth { list-style: none; margin: 0; padding: 0; }

@@ -14,7 +14,7 @@ const canvas = $<HTMLCanvasElement>('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdde2e6);
@@ -25,12 +25,12 @@ const HEMI = 0.4, SUN = 1.1, ENV = 0.45;
 scene.environmentIntensity = ENV;
 const hemi = new THREE.HemisphereLight(0xffffff, 0x6f767c, HEMI);
 const sun = new THREE.DirectionalLight(0xfff8ee, SUN);   // stands in for the ceiling lights' shadows
-sun.position.set(2, 6, 3);
+sun.position.set(2, 8, 3);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
 sun.shadow.bias = -0.0002;
 sun.shadow.normalBias = 0.002;
-Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 5, bottom: -5, near: 0.5, far: 15 });
+Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 7.5, bottom: -7.5, near: 0.5, far: 20 });
 scene.add(hemi, sun);
 
 const spots = buildPlant(scene);
@@ -40,10 +40,10 @@ const camRenderer = new CameraRenderer(renderer, scene);
 
 // ---------- free view ----------
 const freeCam = new THREE.PerspectiveCamera(55, 1, 0.02, 60);
-freeCam.position.set(3.2, 3.0, 4.6);
+freeCam.position.set(6.5, 6.5, 9.5);
 freeCam.layers.enable(HELPER_LAYER);
 const controls = new OrbitControls(freeCam, canvas);
-controls.target.set(-0.4, 0.9, 0);
+controls.target.set(-1.2, 0.6, 0);
 controls.update();
 
 let lookingThrough: PlantCamera | null = null;
@@ -66,7 +66,8 @@ const tiles = plantCams.map((cam) => {
   c.width = 384;
   c.height = 216;
   const label = document.createElement('span');
-  label.textContent = `${cam.id} · ${cam.name}`;
+  label.textContent = cam.id;
+  el.title = `${cam.id} · ${cam.name}`;
   el.append(c, label);
   el.addEventListener('click', () => lookThrough(lookingThrough === cam ? null : cam));
   $('tiles').append(el);
