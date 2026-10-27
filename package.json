@@ -1,0 +1,21 @@
+{
+  "name": "clearline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI line clearance for pharmaceutical manufacturing, powered by Meta SAM 3.1 and Muse Spark.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

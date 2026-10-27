@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClearLine · Virtual Plant</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="view">
+      <canvas id="scene"></canvas>
+      <div id="view-label">Free view · drag to orbit, scroll to zoom</div>
+    </main>
+
+    <aside id="panel">
+      <header>
+        <h1>ClearLine</h1>
+        <p>Virtual plant · simulated packaging line</p>
+      </header>
+
+      <section class="controls">
+        <button id="scatter">Hide 3 leftovers</button>
+        <button id="clear">Clear line</button>
+        <button id="lights">Lights: normal</button>
+        <button id="pins">Show hidden items</button>
+        <button id="capture" class="primary">Capture all cameras</button>
+      </section>
+
+      <section>
+        <h2>Cameras <span class="hint">click to look through one</span></h2>
+        <div id="tiles"></div>
+      </section>
+
+      <section>
+        <h2>Ground truth <span class="hint">where the simulator hid things</span></h2>
+        <ul id="truth"><li class="empty">Line is clear. Nothing hidden yet.</li></ul>
+      </section>
+    </aside>
+
+    <dialog id="captures">
+      <div class="dialog-head">
+        <h2>Captured frames <span class="hint">green boxes = where the items really are</span></h2>
+        <div>
+          <a id="save-truth" class="button" download="truth.json">Save truth.json</a>
+          <button id="close-captures">Close</button>
+        </div>
+      </div>
+      <div id="capture-grid"></div>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
