@@ -23,7 +23,7 @@ export const CAMERA_DEFS: PlantCameraDef[] = [
   { id: 'CAM-2', name: 'Room, north-west corner', position: [-7.6, 3.2, -5.6], target: [1, 0.5, 1.5], fov: 72 },
   // Close-ups along leg A.
   { id: 'CAM-3', name: 'Feeder & chute', position: [-6.05, 1.5, -1.45], target: [-6.1, 0.95, -2], fov: 55 },
-  { id: 'CAM-4', name: 'Conveyor A infeed', position: [-5.6, 1.4, -2], target: [-4.1, 0.9, -2], fov: 62 },
+  { id: 'CAM-4', name: 'Conveyor A infeed', position: [-5.9, 1.55, -1.55], target: [-4.6, 0.9, -2], fov: 70 },
   { id: 'CAM-5', name: 'Labeler & belt', position: [-1.3, 1.5, -1.5], target: [-2.1, 0.9, -2.3], fov: 62 },
   { id: 'CAM-6', name: 'Labeler deck (under head)', position: [-1.3, 1.32, -2.7], target: [-2.05, 0.95, -2.7], fov: 60 },
   { id: 'CAM-7', name: 'Floor under conveyor A', position: [-5.7, 0.3, -2], target: [-2.5, 0.05, -2], fov: 60 },
@@ -31,10 +31,14 @@ export const CAMERA_DEFS: PlantCameraDef[] = [
   { id: 'CAM-8', name: 'Turntable corner', position: [0.9, 2.3, -1.2], target: [1.35, 0.9, -1.95], fov: 60 },
   { id: 'CAM-9', name: 'Conveyor B & checkweigher', position: [2.2, 1.7, -0.9], target: [1.5, 0.9, 1.2], fov: 62 },
   { id: 'CAM-10', name: 'Reject bin (overhead)', position: [2.45, 2.2, 1.15], target: [2.2, 0.6, 0.92], fov: 50 },
-  { id: 'CAM-11', name: 'Conveyor B outfeed & cartoner', position: [2.3, 1.7, 2.4], target: [1.5, 0.9, 4.0], fov: 62 },
+  { id: 'CAM-11', name: 'Cartoner infeed', position: [2.1, 1.5, 3.3], target: [1.5, 0.9, 4.1], fov: 55 },
   // Operator areas.
-  { id: 'CAM-12', name: 'Packing table & trolley', position: [-3.1, 2.6, 1.9], target: [-3.0, 0.9, 1.5], fov: 75 },
-  { id: 'CAM-13', name: 'QA desk', position: [-5.5, 2.4, 4.3], target: [-5.5, 0.75, 5.15], fov: 60 },
+  { id: 'CAM-12', name: 'Packing table', position: [-2.0, 2.0, 1.95], target: [-2.0, 0.92, 2.6], fov: 62 },
+  { id: 'CAM-13', name: 'QA desk', position: [-5.5, 1.7, 4.5], target: [-5.5, 0.75, 5.15], fov: 50 },
+  { id: 'CAM-14', name: 'Trolley', position: [-4.2, 1.85, 0.95], target: [-4.2, 0.9, 0.2], fov: 58 },
+  // Extra coverage along the two long conveyors.
+  { id: 'CAM-15', name: 'Conveyor A middle', position: [-3.9, 1.6, -1.45], target: [-4.2, 0.9, -2], fov: 70 },
+  { id: 'CAM-16', name: 'Conveyor B middle', position: [2.1, 1.6, 1.9], target: [1.5, 0.9, 2.5], fov: 70 },
 ];
 
 const CEILING_Y = 3.5;
@@ -67,6 +71,8 @@ export function createPlantCameras(scene: THREE.Scene): PlantCamera[] {
     camera.position.set(...def.position);
     camera.lookAt(...def.target);
     camera.layers.set(0);
+    // Cameras aren't in the scene graph, so nothing else updates their matrices before the first render.
+    camera.updateMatrixWorld();
 
     // A small camera body sitting just behind the lens, visible only in the free view.
     const body = new THREE.Group();

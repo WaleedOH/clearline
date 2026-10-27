@@ -21,15 +21,20 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 
 - [x] **Virtual plant**: a 16 x 12 m packaging room with an L-shaped line (feeder, conveyor with guide rails,
       labeler, corner turntable, checkweigher with reject bin, cartoner), operator workstations, a QA desk,
-      packing table, trolley and staging rack, watched by 13 fixed cameras, built in Three.js
+      packing table, trolley and staging rack, watched by 16 fixed cameras, built in Three.js
 - [x] **Leftover simulator**: hides tablets, capsules, labels, vials and cartons in realistic spots and knows
       exactly which cameras can see each one (ground truth for scoring)
 - [x] **Change detection** (stage 1): each camera keeps a clean reference and flags new regions. On 30 random
       scenarios it caught every visible leftover (99 of 99) with zero false alarms
-- [x] **Local API** that holds the Meta key server-side, calls SAM 3.1, and enforces a spending cap
-- [ ] SAM 3.1 identification and Muse Spark checklist reasoning (waiting for API credits)
-- [ ] Live dashboard, alerts and QA sign-off
-- [ ] Automatic scoring over hundreds of random scenarios
+- [x] **Multi-camera fusion**: the cameras are calibrated, so each change is located in the room. Several
+      cameras seeing the same object give one alert with the location ("Under north rail (A)") and every view
+- [x] **AI stages wired in** (stages 2-3): each change is cropped and enlarged from its clearest camera, SAM 3.1
+      identifies what's there, and Muse Spark judges it against the area's checklist
+- [x] **Control room**: camera grid, alerts, operator actions with automatic re-check, manual checks for
+      measured blind spots, QA review and sign-off, and a printable clearance record
+- [x] **Local API** that holds the Meta key server-side and enforces a dollar spending cap
+- [ ] First run against the real Meta models (waiting for API credits)
+- [ ] Automatic scoring over hundreds of random scenarios, end to end
 - [ ] Real phone camera on a mock line
 
 ## Run it
@@ -42,15 +47,28 @@ npm run dev
 ```
 
 To connect Meta's models, copy `.env.example` to `.env` and add your Meta Model API key.
-`SAM_CALL_LIMIT` caps how many SAM 3.1 calls the app may make (400 by default, about $1).
+`SPEND_LIMIT_USD` stops all calls to Meta's models once the estimated spend for the run reaches it ($2 by default).
 
 Then open the address it prints. In the virtual plant:
 
 - **Hide 3 leftovers** scatters items; **Show hidden items** marks them with red pins in the free view.
 - Click a camera tile to look through that camera.
-- **Mark line clean**, then hide leftovers and press **Run clearance scan**: cameras that see a change turn amber.
+- **Open control room**, enter an operator name and start a clearance. Work through the findings
+  (**Removed, re-check** makes the cameras confirm the spot is clean), tick the manual checks,
+  submit for QA, and approve or reject. **Clearance record** shows the full, printable record.
 - **Capture all cameras** grabs the full-size frames that get sent to the AI, with green boxes showing where
   the items really are.
+
+### Testing the AI path offline
+
+`scripts/meta-stand-in.mjs` is a local stand-in for the Meta Model API. It checks requests have the documented
+shape and answers in the documented formats with fixed, fake results, so the pipeline can be tested without
+credits. The control room shows a red "TEST STAND-IN" warning whenever it is in use.
+
+```bash
+node scripts/meta-stand-in.mjs
+META_API_BASE=http://localhost:5199/v1 MODEL_API_KEY=test npx vite --port 5180
+```
 
 All product names, batch numbers and line layouts are fictional.
 

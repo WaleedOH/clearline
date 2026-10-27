@@ -4,7 +4,7 @@
 // We only need the boxes for now; masks carry commas inside their data, so we match box tokens
 // directly instead of splitting the text.
 
-export const API_BASE = 'https://api.meta.ai/v1';
+export const META_API_BASE = 'https://api.meta.ai/v1';
 
 export interface SamBox {
   x1: number; y1: number; x2: number; y2: number;
@@ -47,9 +47,9 @@ function outputText(reply: any): string {
 
 /** Finds every match for `prompt` (a short noun phrase like "white tablet") in the image. */
 export async function segment(
-  apiKey: string, imageDataUrl: string, prompt: string, width: number, height: number,
+  apiKey: string, apiBase: string, imageDataUrl: string, prompt: string, width: number, height: number,
 ): Promise<SamBox[]> {
-  const res = await fetch(`${API_BASE}/responses`, {
+  const res = await fetch(`${apiBase}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
