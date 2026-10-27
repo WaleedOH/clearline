@@ -99,8 +99,12 @@ export function createPlantCameras(scene: THREE.Scene): PlantCamera[] {
  * gives smooth edges without relying on multisampled render targets.
  */
 export class CameraRenderer {
-  private readonly targets = new Map<string, THREE.WebGLRenderTarget>();
-  private readonly scratch = document.createElement('canvas');
+  private readonly buffers = new Map<string, {
+    target: THREE.WebGLRenderTarget;
+    pixels: Uint8Array;
+    image: ImageData;
+    canvas: HTMLCanvasElement;
+  }>();
 
   constructor(private readonly renderer: THREE.WebGLRenderer, private readonly scene: THREE.Scene) {}
 
@@ -110,41 +114,51 @@ export class CameraRenderer {
     canvas.getContext('2d')!.drawImage(src, 0, 0, canvas.width, canvas.height);
   }
 
-  /** Full-size frame as a PNG data URL, exactly what gets sent to the AI. */
-  capture(cam: PlantCamera): string {
+  /**
+   * Full-size frame, exactly what the pipeline and the AI see. The canvas is reused: it is
+   * overwritten by the next capture, so read or copy it straight away.
+   */
+  captureCanvas(cam: PlantCamera): HTMLCanvasElement {
     const src = this.renderPixels(cam, CAPTURE_WIDTH * 2, CAPTURE_HEIGHT * 2);
-    const out = document.createElement('canvas');
-    out.width = CAPTURE_WIDTH;
-    out.height = CAPTURE_HEIGHT;
-    const ctx = out.getContext('2d')!;
+    const ctx = this.captureOut.getContext('2d')!;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, 0, 0, CAPTURE_WIDTH, CAPTURE_HEIGHT);
-    return out.toDataURL('image/png');
+    return this.captureOut;
   }
+
+  capture(cam: PlantCamera): string {
+    return this.captureCanvas(cam).toDataURL('image/png');
+  }
+
+  private readonly captureOut = Object.assign(document.createElement('canvas'), {
+    width: CAPTURE_WIDTH, height: CAPTURE_HEIGHT,
+  });
 
   private renderPixels(cam: PlantCamera, w: number, h: number): HTMLCanvasElement {
     const key = `${w}x${h}`;
-    let target = this.targets.get(key);
-    if (!target) {
-      target = new THREE.WebGLRenderTarget(w, h, { colorSpace: THREE.SRGBColorSpace });
-      this.targets.set(key, target);
+    let buf = this.buffers.get(key);
+    if (!buf) {
+      // One set of buffers per size, reused for every frame: a capture moves ~30 MB of pixels.
+      buf = {
+        target: new THREE.WebGLRenderTarget(w, h, { colorSpace: THREE.SRGBColorSpace }),
+        pixels: new Uint8Array(w * h * 4),
+        image: new ImageData(w, h),
+        canvas: Object.assign(document.createElement('canvas'), { width: w, height: h }),
+      };
+      this.buffers.set(key, buf);
     }
-    this.renderer.setRenderTarget(target);
+    this.renderer.setRenderTarget(buf.target);
     this.renderer.render(this.scene, cam.camera);
-    const pixels = new Uint8Array(w * h * 4);
-    this.renderer.readRenderTargetPixels(target, 0, 0, w, h, pixels);
+    this.renderer.readRenderTargetPixels(buf.target, 0, 0, w, h, buf.pixels);
     this.renderer.setRenderTarget(null);
 
     // WebGL rows run bottom-up, canvas rows run top-down.
-    const image = new ImageData(w, h);
     const row = w * 4;
     for (let y = 0; y < h; y++) {
-      image.data.set(pixels.subarray((h - 1 - y) * row, (h - y) * row), y * row);
+      buf.image.data.set(buf.pixels.subarray((h - 1 - y) * row, (h - y) * row), y * row);
     }
-    this.scratch.width = w;
-    this.scratch.height = h;
-    this.scratch.getContext('2d')!.putImageData(image, 0, 0);
-    return this.scratch;
+    buf.canvas.getContext('2d')!.putImageData(buf.image, 0, 0);
+    return buf.canvas;
   }
 }
 
@@ -186,27 +200,32 @@ export function computeTruth(scene: THREE.Scene, cams: PlantCamera[], items: Pla
         return !!hit && belongsTo(hit.object, item);
       });
       if (!visible) continue;
-
-      let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-      for (let i = 0; i < 8; i++) {
-        const corner = new THREE.Vector3(
-          i & 1 ? bounds.max.x : bounds.min.x,
-          i & 2 ? bounds.max.y : bounds.min.y,
-          i & 4 ? bounds.max.z : bounds.min.z,
-        ).project(cam.camera);
-        const px = (corner.x + 1) / 2 * CAPTURE_WIDTH;
-        const py = (1 - corner.y) / 2 * CAPTURE_HEIGHT;
-        x1 = Math.min(x1, px); y1 = Math.min(y1, py);
-        x2 = Math.max(x2, px); y2 = Math.max(y2, py);
-      }
-      const pixels = Math.max(x2 - x1, y2 - y1);
-      if (pixels < MIN_PIXELS) continue;
-      sightings.push({
-        cameraId: cam.id,
-        box: { x1: Math.round(x1), y1: Math.round(y1), x2: Math.round(x2), y2: Math.round(y2) },
-        pixels: Math.round(pixels),
-      });
+      const projected = projectBounds(bounds, cam.camera);
+      if (!projected || projected.pixels < MIN_PIXELS) continue;
+      sightings.push({ cameraId: cam.id, ...projected });
     }
     return { id: item.id, type: item.type, spot: item.spot, area: item.area, sightings };
   });
+}
+
+/** Where a bounding box lands in a camera's capture, ignoring anything in the way. Null if off screen. */
+export function projectBounds(bounds: THREE.Box3, camera: THREE.PerspectiveCamera): Omit<Sighting, 'cameraId'> | null {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (let i = 0; i < 8; i++) {
+    const corner = new THREE.Vector3(
+      i & 1 ? bounds.max.x : bounds.min.x,
+      i & 2 ? bounds.max.y : bounds.min.y,
+      i & 4 ? bounds.max.z : bounds.min.z,
+    ).project(camera);
+    if (corner.z < -1 || corner.z > 1) return null;      // behind the camera
+    const px = (corner.x + 1) / 2 * CAPTURE_WIDTH;
+    const py = (1 - corner.y) / 2 * CAPTURE_HEIGHT;
+    x1 = Math.min(x1, px); y1 = Math.min(y1, py);
+    x2 = Math.max(x2, px); y2 = Math.max(y2, py);
+  }
+  if (x2 < 0 || y2 < 0 || x1 > CAPTURE_WIDTH || y1 > CAPTURE_HEIGHT) return null;
+  return {
+    box: { x1: Math.round(x1), y1: Math.round(y1), x2: Math.round(x2), y2: Math.round(y2) },
+    pixels: Math.round(Math.max(x2 - x1, y2 - y1)),
+  };
 }

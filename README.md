@@ -24,7 +24,10 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
       packing table, trolley and staging rack, watched by 13 fixed cameras, built in Three.js
 - [x] **Leftover simulator**: hides tablets, capsules, labels, vials and cartons in realistic spots and knows
       exactly which cameras can see each one (ground truth for scoring)
-- [ ] Detection pipeline: change detection → SAM 3.1 → Muse Spark
+- [x] **Change detection** (stage 1): each camera keeps a clean reference and flags new regions. On 30 random
+      scenarios it caught every visible leftover (99 of 99) with zero false alarms
+- [x] **Local API** that holds the Meta key server-side, calls SAM 3.1, and enforces a spending cap
+- [ ] SAM 3.1 identification and Muse Spark checklist reasoning (waiting for API credits)
 - [ ] Live dashboard, alerts and QA sign-off
 - [ ] Automatic scoring over hundreds of random scenarios
 - [ ] Real phone camera on a mock line
@@ -38,10 +41,14 @@ npm install
 npm run dev
 ```
 
+To connect Meta's models, copy `.env.example` to `.env` and add your Meta Model API key.
+`SAM_CALL_LIMIT` caps how many SAM 3.1 calls the app may make (400 by default, about $1).
+
 Then open the address it prints. In the virtual plant:
 
 - **Hide 3 leftovers** scatters items; **Show hidden items** marks them with red pins in the free view.
 - Click a camera tile to look through that camera.
+- **Mark line clean**, then hide leftovers and press **Run clearance scan**: cameras that see a change turn amber.
 - **Capture all cameras** grabs the full-size frames that get sent to the AI, with green boxes showing where
   the items really are.
 

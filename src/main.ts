@@ -4,8 +4,10 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildPlant } from './plant/room';
 import { Leftovers } from './plant/items';
 import {
-  CameraRenderer, computeTruth, createPlantCameras, HELPER_LAYER, type PlantCamera, type TruthEntry,
+  CameraRenderer, CAPTURE_WIDTH, computeTruth, createPlantCameras, HELPER_LAYER, projectBounds,
+  type PlantCamera, type TruthEntry,
 } from './plant/cameras';
+import { ChangeDetector, type Region } from './pipeline/change';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -189,13 +191,116 @@ $('capture').addEventListener('click', async () => {
 });
 $('close-captures').addEventListener('click', () => $<HTMLDialogElement>('captures').close());
 
-// Handle for scripts and the upcoming detection pipeline.
+// ---------- line clearance: stage 1, change detection ----------
+const detector = new ChangeDetector();
+const changes = new Map<string, Region[]>();
+const time = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+function setTileStatus(cameraId: string, status: 'clear' | 'change' | '') {
+  const tile = tiles.find((t) => t.cam.id === cameraId)!;
+  tile.el.dataset.status = status;
+}
+
+function markClean() {
+  for (const cam of plantCams) {
+    detector.setReference(cam.id, camRenderer.captureCanvas(cam));
+    setTileStatus(cam.id, 'clear');
+  }
+  changes.clear();
+  $<HTMLButtonElement>('run-scan').disabled = false;
+  $('scan-summary').innerHTML = `Clean reference saved for all ${plantCams.length} cameras at ${time()}.`;
+}
+
+function runScan() {
+  const started = performance.now();
+  changes.clear();
+  for (const cam of plantCams) {
+    const regions = detector.detect(cam.id, camRenderer.captureCanvas(cam));
+    if (regions.length) changes.set(cam.id, regions);
+    setTileStatus(cam.id, regions.length ? 'change' : 'clear');
+  }
+  const ms = Math.round(performance.now() - started);
+  const flagged = [...changes.entries()];
+  $('scan-summary').innerHTML = flagged.length
+    ? `<b>${flagged.length} camera(s) saw changes</b> at ${time()}: `
+      + flagged.map(([id, r]) => `${id} (${r.length})`).join(', ')
+      + `. Next, SAM 3.1 checks what they are. <span class="hint">${ms} ms</span>`
+    : `<b>No changes on any camera</b> at ${time()}. <span class="hint">${ms} ms</span>`;
+  return changes;
+}
+
+$('mark-clean').addEventListener('click', markClean);
+$('run-scan').addEventListener('click', runScan);
+
+/**
+ * Scores stage 1 against the simulator's ground truth: over `rounds` random scenarios, how many
+ * camera sightings of a leftover overlap a changed region, and how many regions match nothing.
+ */
+function evaluateChangeDetection(rounds = 20, itemsPerRound = 4) {
+  leftovers.clear();
+  markClean();
+  let sightings = 0, caught = 0, items = 0, visibleItems = 0, itemsCaught = 0;
+  let regions = 0, smallOrHidden = 0, falseAlarms = 0;
+  const overlaps = (r: Region, b: { x1: number; y1: number; x2: number; y2: number }, pad = 0) =>
+    r.x1 < b.x2 + pad && r.x2 > b.x1 - pad && r.y1 < b.y2 + pad && r.y2 > b.y1 - pad;
+  for (let round = 0; round < rounds; round++) {
+    leftovers.scatter(itemsPerRound);
+    refreshTruth();
+    const found = runScan();
+    for (const t of truth) {
+      items++;
+      if (t.sightings.length) visibleItems++;
+      let anyCaught = false;
+      for (const s of t.sightings) {
+        sightings++;
+        if ((found.get(s.cameraId) ?? []).some((r) => overlaps(r, s.box))) { caught++; anyCaught = true; }
+      }
+      if (anyCaught) itemsCaught++;
+    }
+    // Every region either matches a visible item, comes from an item that is real but too small or
+    // mostly hidden (shadow, a sliver), or is a false alarm with no item anywhere near it.
+    for (const [cameraId, rs] of found) {
+      const cam = plantCams.find((c) => c.id === cameraId)!;
+      const anywhere = leftovers.items
+        .map((it) => projectBounds(new THREE.Box3().setFromObject(it.object), cam.camera))
+        .filter((p) => p !== null);
+      for (const r of rs) {
+        regions++;
+        if (truth.some((t) => t.sightings.some((s) => s.cameraId === cameraId && overlaps(r, s.box)))) continue;
+        if (anywhere.some((p) => overlaps(r, p.box, 20))) smallOrHidden++;
+        else falseAlarms++;
+      }
+    }
+    leftovers.clear();
+  }
+  syncPins();
+  refreshTruth();
+  runScan();
+  return { rounds, items, visibleItems, itemsCaught, sightings, caught, regions, smallOrHidden, falseAlarms };
+}
+
+async function refreshApiStatus() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    $('api-status').textContent = s.metaApi
+      ? `Meta API connected · ${s.samCalls}/${s.samCallLimit} SAM calls used (≈ $${s.estimatedCostUsd})`
+      : 'Meta API not connected yet: waiting for the API key. Change detection works without it.';
+  } catch {
+    $('api-status').textContent = 'Local API not reachable.';
+  }
+}
+refreshApiStatus();
+
+// Handle for scripts and tests.
 Object.assign(window, {
   clearline: {
     scatter: (n = 3) => { const r = leftovers.scatter(n); syncPins(); refreshTruth(); return r.map((i) => i.id); },
     clear: () => { leftovers.clear(); syncPins(); refreshTruth(); },
     capture: captureAll,
     truth: () => truth,
+    markClean,
+    scan: () => Object.fromEntries(runScan()),
+    evaluateChangeDetection,
   },
 });
 
@@ -205,6 +310,14 @@ renderer.setAnimationLoop(() => {
   // Refresh one camera tile per frame; at 60 fps each tile updates ten times a second.
   const tile = tiles[tileIndex++ % tiles.length];
   camRenderer.drawTo(tile.cam, tile.canvas);
+  const regions = changes.get(tile.cam.id);
+  if (regions) {
+    const ctx = tile.canvas.getContext('2d')!;
+    const k = tile.canvas.width / CAPTURE_WIDTH;
+    ctx.strokeStyle = '#ffb020';
+    ctx.lineWidth = 2;
+    for (const r of regions) ctx.strokeRect(r.x1 * k, r.y1 * k, (r.x2 - r.x1) * k, (r.y2 - r.y1) * k);
+  }
 
   if (lookingThrough) {
     throughCam.copy(lookingThrough.camera);

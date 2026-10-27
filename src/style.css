@@ -52,6 +52,11 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 #tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .tile { position: relative; cursor: pointer; border: 2px solid transparent; border-radius: 6px; overflow: hidden; background: #000; }
 .tile.active { border-color: var(--accent); }
+.tile[data-status="clear"] span { background: rgba(28, 110, 62, 0.85); }
+.tile[data-status="change"] span { background: rgba(176, 112, 0, 0.9); }
+.summary { margin: 10px 0 0; font-size: 13px; }
+.summary.muted { color: var(--muted); font-size: 12px; margin-top: 6px; }
+button:disabled { opacity: 0.45; cursor: default; }
 .tile canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }
 .tile span {
   position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 4px;
