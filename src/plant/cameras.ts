@@ -18,14 +18,26 @@ export interface PlantCameraDef {
 }
 
 export const CAMERA_DEFS: PlantCameraDef[] = [
-  { id: 'CAM-1', name: 'Room, north-east corner', position: [5.6, 3.1, 3.6], target: [-0.5, 0.6, 0], fov: 70 },
-  { id: 'CAM-2', name: 'Room, south-west corner', position: [-5.6, 3.1, -3.6], target: [0, 0.6, 0.5], fov: 70 },
-  { id: 'CAM-3', name: 'Feeder & chute', position: [-3.55, 1.45, 0.5], target: [-3.6, 0.95, 0], fov: 55 },
-  { id: 'CAM-4', name: 'Conveyor infeed', position: [-3.0, 1.35, 0], target: [-1.6, 0.9, 0], fov: 60 },
-  { id: 'CAM-5', name: 'Labeler', position: [0.9, 1.45, 0.45], target: [0.2, 0.9, -0.35], fov: 60 },
-  { id: 'CAM-6', name: 'Outfeed & reject bin', position: [1.5, 2.4, 1.15], target: [2.1, 0.75, 0.3], fov: 75 },
-  { id: 'CAM-7', name: 'Packing table (ceiling)', position: [-1.2, 2.3, 3.2], target: [-1.2, 0.9, 2.35], fov: 60 },
+  // Room overviews in opposite corners.
+  { id: 'CAM-1', name: 'Room, south-east corner', position: [7.6, 3.2, 5.6], target: [-1, 0.5, -1], fov: 72 },
+  { id: 'CAM-2', name: 'Room, north-west corner', position: [-7.6, 3.2, -5.6], target: [1, 0.5, 1.5], fov: 72 },
+  // Close-ups along leg A.
+  { id: 'CAM-3', name: 'Feeder & chute', position: [-6.05, 1.5, -1.45], target: [-6.1, 0.95, -2], fov: 55 },
+  { id: 'CAM-4', name: 'Conveyor A infeed', position: [-5.6, 1.4, -2], target: [-4.1, 0.9, -2], fov: 62 },
+  { id: 'CAM-5', name: 'Labeler & belt', position: [-1.3, 1.5, -1.5], target: [-2.1, 0.9, -2.3], fov: 62 },
+  { id: 'CAM-6', name: 'Labeler deck (under head)', position: [-1.3, 1.32, -2.7], target: [-2.05, 0.95, -2.7], fov: 60 },
+  { id: 'CAM-7', name: 'Floor under conveyor A', position: [-5.7, 0.3, -2], target: [-2.5, 0.05, -2], fov: 60 },
+  // The corner and leg B.
+  { id: 'CAM-8', name: 'Turntable corner', position: [0.9, 2.3, -1.2], target: [1.35, 0.9, -1.95], fov: 60 },
+  { id: 'CAM-9', name: 'Conveyor B & checkweigher', position: [2.2, 1.7, -0.9], target: [1.5, 0.9, 1.2], fov: 62 },
+  { id: 'CAM-10', name: 'Reject bin (overhead)', position: [2.45, 2.2, 1.15], target: [2.2, 0.6, 0.92], fov: 50 },
+  { id: 'CAM-11', name: 'Conveyor B outfeed & cartoner', position: [2.3, 1.7, 2.4], target: [1.5, 0.9, 4.0], fov: 62 },
+  // Operator areas.
+  { id: 'CAM-12', name: 'Packing table & trolley', position: [-3.1, 2.6, 1.9], target: [-3.0, 0.9, 1.5], fov: 75 },
+  { id: 'CAM-13', name: 'QA desk', position: [-5.5, 2.4, 4.3], target: [-5.5, 0.75, 5.15], fov: 60 },
 ];
+
+const CEILING_Y = 3.5;
 
 export interface PlantCamera extends PlantCameraDef {
   camera: THREE.PerspectiveCamera;
@@ -68,6 +80,15 @@ export function createPlantCameras(scene: THREE.Scene): PlantCamera[] {
     body.quaternion.copy(camera.quaternion);
     body.traverse((o) => o.layers.set(HELPER_LAYER));
     scene.add(body);
+
+    // High cameras hang from a pole to the ceiling.
+    if (def.position[1] > 1.7) {
+      const length = CEILING_Y - def.position[1];
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, length, 8), bodyMat);
+      pole.position.set(def.position[0], def.position[1] + length / 2, def.position[2]);
+      pole.layers.set(HELPER_LAYER);
+      scene.add(pole);
+    }
 
     return { ...def, camera };
   });

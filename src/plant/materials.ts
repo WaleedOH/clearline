@@ -38,4 +38,9 @@ export const mat = {
   lightPanel: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.2 }),
   rubber: new THREE.MeshStandardMaterial({ color: 0x1c1e21, roughness: 0.9 }),
   labelRoll: new THREE.MeshStandardMaterial({ color: 0xf7f7f2, roughness: 0.7 }),
+  plasticDark: new THREE.MeshStandardMaterial({ color: 0x2a2e33, roughness: 0.6 }),
+  plasticYellow: new THREE.MeshStandardMaterial({ color: 0xe8b416, roughness: 0.55 }),
+  plasticBlue: new THREE.MeshStandardMaterial({ color: 0x2f62b0, roughness: 0.55 }),
+  cardboard: new THREE.MeshStandardMaterial({ color: 0xb08a5a, roughness: 0.9 }),
+  seat: new THREE.MeshStandardMaterial({ color: 0x3b4a5c, roughness: 0.7 }),
 };

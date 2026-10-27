@@ -19,8 +19,9 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 
 ## Status
 
-- [x] **Virtual plant**: a simulated packaging room (feeder, conveyor with guide rails, labeler, reject bin,
-      cartoner, packing table) with 7 fixed cameras, built in Three.js
+- [x] **Virtual plant**: a 16 x 12 m packaging room with an L-shaped line (feeder, conveyor with guide rails,
+      labeler, corner turntable, checkweigher with reject bin, cartoner), operator workstations, a QA desk,
+      packing table, trolley and staging rack, watched by 13 fixed cameras, built in Three.js
 - [x] **Leftover simulator**: hides tablets, capsules, labels, vials and cartons in realistic spots and knows
       exactly which cameras can see each one (ground truth for scoring)
 - [ ] Detection pipeline: change detection → SAM 3.1 → Muse Spark
