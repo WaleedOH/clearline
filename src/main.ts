@@ -4,10 +4,11 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildPlant } from './plant/room';
 import { Leftovers } from './plant/items';
 import {
-  CameraRenderer, CAPTURE_WIDTH, computeTruth, createPlantCameras, HELPER_LAYER, projectBounds,
+  CameraRenderer, CAPTURE_HEIGHT, CAPTURE_WIDTH, computeTruth, createPlantCameras, HELPER_LAYER, projectBounds,
   type PlantCamera, type TruthEntry,
 } from './plant/cameras';
 import { ChangeDetector, type Region } from './pipeline/change';
+import { ControlRoom } from './ui/controlRoom';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -279,6 +280,96 @@ function evaluateChangeDetection(rounds = 20, itemsPerRound = 4) {
   return { rounds, items, visibleItems, itemsCaught, sightings, caught, regions, smallOrHidden, falseAlarms };
 }
 
+// ---------- blind spots: which hiding spots the cameras can't fully see ----------
+/** Places test tablets on a grid across every spot and measures how many any camera can see. */
+function measureCoverage() {
+  const result: { spot: string; area: string; coverage: number }[] = [];
+  for (const spot of spots) {
+    const probes = [];
+    for (const fx of [0.15, 0.5, 0.85]) {
+      for (const fz of [0.15, 0.5, 0.85]) {
+        const x = spot.x[0] + fx * (spot.x[1] - spot.x[0]);
+        const z = spot.z[0] + fz * (spot.z[1] - spot.z[0]);
+        probes.push(leftovers.place('tablet', spot, x, z));
+      }
+    }
+    const seen = computeTruth(scene, plantCams, probes).filter((t) => t.sightings.length).length;
+    for (const p of probes) leftovers.remove(p.id);
+    result.push({ spot: spot.name, area: spot.area, coverage: seen / probes.length });
+  }
+  return result;
+}
+const coverage = measureCoverage();
+const blindSpots = coverage.filter((c) => c.coverage < 0.75);
+Object.assign(window, { clearlineCoverage: coverage });
+
+/** Simulator stand-in for an operator picking up whatever lies under a region. */
+function simulateRemoval(cameraId: string, region: Region): number {
+  const cam = plantCams.find((c) => c.id === cameraId)!;
+  let removed = 0;
+  for (const it of [...leftovers.items]) {
+    const p = projectBounds(new THREE.Box3().setFromObject(it.object), cam.camera);
+    if (p && p.box.x1 < region.x2 + 10 && p.box.x2 > region.x1 - 10 && p.box.y1 < region.y2 + 10 && p.box.y2 > region.y1 - 10) {
+      leftovers.remove(it.id);
+      removed++;
+    }
+  }
+  syncPins();
+  refreshTruth();
+  return removed;
+}
+
+const locateRay = new THREE.Raycaster();
+locateRay.layers.set(0);
+
+/**
+ * Where a camera region is in the room. The cameras are calibrated (we know their pose), so a ray
+ * through the region's centre lands on the surface the change sits on.
+ */
+function locate(cameraId: string, region: Region): { location: [number, number, number]; where: string } | null {
+  const cam = plantCams.find((c) => c.id === cameraId)!;
+  const ndc = new THREE.Vector2(
+    ((region.x1 + region.x2) / 2 / CAPTURE_WIDTH) * 2 - 1,
+    1 - ((region.y1 + region.y2) / 2 / CAPTURE_HEIGHT) * 2,
+  );
+  locateRay.setFromCamera(ndc, cam.camera);
+  const hit = locateRay.intersectObjects(scene.children, true)[0];
+  if (!hit) return null;
+  const p = hit.point;
+  let best = { name: '', d: Infinity };
+  for (const s of spots) {
+    const dx = Math.max(s.x[0] - p.x, 0, p.x - s.x[1]);
+    const dz = Math.max(s.z[0] - p.z, 0, p.z - s.z[1]);
+    const d = Math.hypot(dx, dz, p.y - s.y);
+    if (d < best.d) best = { name: s.name, d };
+  }
+  const where = best.d < 0.5 ? best.name : `Room floor near (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) m`;
+  return { location: [p.x, p.y, p.z], where };
+}
+
+const controlRoom = new ControlRoom({
+  locate,
+  cams: plantCams,
+  draw: (cam, canvas) => camRenderer.drawTo(cam, canvas),
+  capture: (cam) => camRenderer.captureCanvas(cam),
+  detector,
+  blindSpots,
+  simulateRemoval,
+  apiStatus: async () => {
+    try {
+      const s = await (await fetch('/api/status')).json();
+      return { connected: s.metaApi === true, standIn: s.testStandIn === true };
+    } catch {
+      return { connected: false, standIn: false };
+    }
+  },
+  onExit: () => controlRoom.hide(),
+});
+$('open-control').addEventListener('click', () => controlRoom.show());
+
+// The simulated line starts clean, so every camera can save its clean reference right away.
+markClean();
+
 async function refreshApiStatus() {
   try {
     const s = await (await fetch('/api/status')).json();
@@ -307,7 +398,12 @@ Object.assign(window, {
 // ---------- loop ----------
 let tileIndex = 0;
 renderer.setAnimationLoop(() => {
-  // Refresh one camera tile per frame; at 60 fps each tile updates ten times a second.
+  // The control room covers the whole screen, so only its camera tiles need drawing.
+  if (controlRoom.visible) {
+    controlRoom.drawNext();
+    return;
+  }
+  // Refresh one camera tile per frame; at 60 fps each tile updates about five times a second.
   const tile = tiles[tileIndex++ % tiles.length];
   camRenderer.drawTo(tile.cam, tile.canvas);
   const regions = changes.get(tile.cam.id);

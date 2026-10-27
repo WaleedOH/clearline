@@ -81,3 +81,81 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 #capture-grid canvas { width: 100%; display: block; border-radius: 6px; }
 #capture-grid figcaption { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); }
 #capture-grid a { color: var(--accent); }
+
+button.wide { width: 100%; margin-top: 12px; }
+
+/* ---------- control room ---------- */
+#control {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+}
+#control[hidden] { display: none; }
+.cr-head {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.cr-title { flex: 1; color: var(--muted); }
+.badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #2a3038; }
+.badge:empty { display: none; }
+.badge[data-state="ready-for-qa"], .badge[data-state="awaiting-qa"] { background: #1d4f7a; }
+.badge[data-state="approved"] { background: #1c6e3e; }
+.badge[data-state="rejected"] { background: #8a2a2a; }
+
+.cr-body { flex: 1; display: flex; min-height: 0; }
+.cr-grid {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; align-content: start;
+}
+.cr-tile { position: relative; border: 2px solid #2a3038; border-radius: 8px; overflow: hidden; background: #000; }
+.cr-tile canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }
+.cr-tile span {
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65); font-size: 12px;
+}
+.cr-tile[data-status="clear"] { border-color: #1c6e3e; }
+.cr-tile[data-status="change"] { border-color: #b07000; }
+.cr-tile[data-status="leftover"] { border-color: var(--bad); }
+
+.cr-side { width: 420px; flex-shrink: 0; overflow-y: auto; padding: 14px 16px; background: var(--panel); border-left: 1px solid var(--line); }
+.cr-side h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+.cr-side .count { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.cr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cr-note { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.cr-empty { color: var(--muted); }
+.cr-form { display: grid; gap: 10px; }
+.cr-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.cr-form input {
+  background: #0f1215; color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 10px; font: inherit;
+}
+
+.cr-finding {
+  display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: start;
+  padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid var(--line); border-left: 4px solid #b07000;
+  font-size: 13px; background: #1b2026;
+}
+.cr-finding img { width: 110px; border-radius: 4px; display: block; }
+.cr-finding[data-status="leftover"], .cr-finding[data-status="unclear"], .cr-finding[data-status="error"] { border-left-color: var(--bad); }
+.cr-finding[data-status="belongs"], .cr-finding[data-status="resolved"] { border-left-color: var(--ok); }
+.cr-status { font-weight: 600; margin: 2px 0; }
+.cr-finding small { color: var(--muted); }
+.cr-error { color: var(--bad) !important; }
+.cr-card-actions { display: flex; gap: 6px; margin-top: 8px; }
+.cr-card-actions button { padding: 4px 8px; font-size: 12px; }
+
+.cr-check { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--line); }
+.cr-check small { color: var(--muted); }
+.cr-resolved { font-size: 12px; color: var(--muted); padding: 4px 0; }
+.cr-qa-result { margin: 14px 0 10px; padding: 10px; border-radius: 8px; background: #1c6e3e; }
+.cr-qa-result[data-state="rejected"] { background: #8a2a2a; }
+.cr-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.cr-table th { text-align: left; color: var(--muted); font-weight: 400; padding: 4px 12px 4px 0; vertical-align: top; width: 140px; }
+.cr-table td { padding: 4px 0; }
+
+@media print {
+  body > *:not(#control) { display: none !important; }
+  #control > *:not(dialog) { display: none !important; }
+  #cr-record { position: static; border: 0; width: auto; max-height: none; color: #000; background: #fff; }
+  #cr-record .dialog-head div { display: none; }
+}
