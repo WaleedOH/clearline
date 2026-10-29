@@ -33,9 +33,12 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 - [x] **Control room**: camera grid, alerts, operator actions with automatic re-check, manual checks for
       measured blind spots, QA review and sign-off, and a printable clearance record
 - [x] **Local API** that holds the Meta key server-side and enforces a dollar spending cap
+- [x] **Phone cameras**: a phone joins the control room as a live camera with a join code. Its clean
+      picture is learned over a few seconds, including how much each pixel flickers, so small items are
+      caught without noise alarms; a bumped camera gives a warning instead of false alerts
 - [ ] First run against the real Meta models (waiting for API credits)
 - [ ] Automatic scoring over hundreds of random scenarios, end to end
-- [ ] Real phone camera on a mock line
+- [ ] Phone camera tested on the physical mock line
 
 ## Run it
 
@@ -59,6 +62,20 @@ Then open the address it prints. In the virtual plant:
 - **Capture all cameras** grabs the full-size frames that get sent to the AI, with green boxes showing where
   the items really are.
 
+### Adding a phone camera
+
+```bash
+npm run dev:phone
+```
+
+This serves ClearLine over HTTPS on your local network (phones only allow camera access on secure pages; the
+certificate is self-signed, so each device asks you to trust it once). The control room shows the phone address
+and a join code. On the phone, open the address, enter the code, prop the phone up facing the area, then press
+**Set clean picture** on its tile while the area is clean.
+
+Only phone picture uploads are accepted from the network. Everything else, including every call that spends
+API credits, only answers the computer running ClearLine.
+
 ### Testing the AI path offline
 
 `scripts/meta-stand-in.mjs` is a local stand-in for the Meta Model API. It checks requests have the documented
@@ -66,7 +83,7 @@ shape and answers in the documented formats with fixed, fake results, so the pip
 credits. The control room shows a red "TEST STAND-IN" warning whenever it is in use.
 
 ```bash
-node scripts/meta-stand-in.mjs
+npm run stand-in
 META_API_BASE=http://localhost:5199/v1 MODEL_API_KEY=test npx vite --port 5180
 ```
 

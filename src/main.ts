@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildPlant } from './plant/room';
-import { Leftovers } from './plant/items';
+import { Leftovers, type ItemType } from './plant/items';
 import {
   CameraRenderer, CAPTURE_HEIGHT, CAPTURE_WIDTH, computeTruth, createPlantCameras, HELPER_LAYER, projectBounds,
   type PlantCamera, type TruthEntry,
 } from './plant/cameras';
 import { ChangeDetector, type Region } from './pipeline/change';
 import { ControlRoom } from './ui/controlRoom';
+import { PhoneFeeds } from './phone/feeds';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -347,18 +348,29 @@ function locate(cameraId: string, region: Region): { location: [number, number, 
   return { location: [p.x, p.y, p.z], where };
 }
 
+// Real phone cameras join the control room alongside the simulated ones.
+const phoneFeeds = new PhoneFeeds((feed) => controlRoom.addCamera(feed));
+const plantCamById = new Map(plantCams.map((c) => [c.id, c]));
+
 const controlRoom = new ControlRoom({
-  locate,
+  // Phones aren't calibrated, so they have no room location and nothing to remove in the simulator.
+  locate: (cameraId, region) => (plantCamById.has(cameraId) ? locate(cameraId, region) : null),
+  simulateRemoval: (cameraId, region) => (plantCamById.has(cameraId) ? simulateRemoval(cameraId, region) : 0),
   cams: plantCams,
-  draw: (cam, canvas) => camRenderer.drawTo(cam, canvas),
-  capture: (cam) => camRenderer.captureCanvas(cam),
+  draw: (cam, canvas) => {
+    const plant = plantCamById.get(cam.id);
+    if (plant) camRenderer.drawTo(plant, canvas); else phoneFeeds.draw(cam.id, canvas);
+  },
+  capture: (cam) => {
+    const plant = plantCamById.get(cam.id);
+    return plant ? camRenderer.captureCanvas(plant) : phoneFeeds.capture(cam.id);
+  },
   detector,
   blindSpots,
-  simulateRemoval,
   apiStatus: async () => {
     try {
       const s = await (await fetch('/api/status')).json();
-      return { connected: s.metaApi === true, standIn: s.testStandIn === true };
+      return { connected: s.metaApi === true, standIn: s.testStandIn === true, phone: s.phone };
     } catch {
       return { connected: false, standIn: false };
     }
@@ -386,12 +398,25 @@ refreshApiStatus();
 Object.assign(window, {
   clearline: {
     scatter: (n = 3) => { const r = leftovers.scatter(n); syncPins(); refreshTruth(); return r.map((i) => i.id); },
+    /** Puts one item in the middle of a named spot, e.g. place('tablet', 'Packing table'). */
+    place: (type: ItemType, spotName: string) => {
+      const spot = spots.find((s) => s.name === spotName);
+      if (!spot) throw new Error(`No spot named ${spotName}`);
+      const it = leftovers.place(type, spot, (spot.x[0] + spot.x[1]) / 2, (spot.z[0] + spot.z[1]) / 2);
+      syncPins();
+      refreshTruth();
+      return it.id;
+    },
+    /** One camera's current view as a JPEG data URL, as a phone would send it. */
+    jpeg: (cameraId: string) => camRenderer.captureCanvas(plantCamById.get(cameraId)!).toDataURL('image/jpeg', 0.85),
     clear: () => { leftovers.clear(); syncPins(); refreshTruth(); },
     capture: captureAll,
     truth: () => truth,
     markClean,
     scan: () => Object.fromEntries(runScan()),
     evaluateChangeDetection,
+    /** Internals, for tests in the browser console. */
+    debug: { detector, phoneFeeds },
   },
 });
 

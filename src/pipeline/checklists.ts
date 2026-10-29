@@ -51,7 +51,15 @@ export const CAMERA_AREAS: Record<string, string[]> = {
 /** What SAM 3.1 is asked to look for inside a changed region. Short noun phrases work best. */
 export const SAM_PROMPTS = ['tablet', 'capsule', 'label', 'vial', 'carton'];
 
+/** Phone cameras watch the real mock line: a tray standing in for a stretch of conveyor. */
+const MOCK_TRAY: AreaChecklist = {
+  area: 'Mock line tray',
+  belongs: ['empty metal tray or surface', 'tray edges and rims'],
+  mustNotBe: PRODUCT_LEFTOVERS,
+};
+
 export function checklistsFor(cameraId: string): AreaChecklist[] {
+  if (cameraId.startsWith('PHONE-')) return [MOCK_TRAY];
   const areas = CAMERA_AREAS[cameraId] ?? [];
   return CHECKLISTS.filter((c) => areas.includes(c.area));
 }
