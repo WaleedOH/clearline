@@ -159,3 +159,8 @@ button.wide { width: 100%; margin-top: 12px; }
   #cr-record { position: static; border: 0; width: auto; max-height: none; color: #000; background: #fff; }
   #cr-record .dialog-head div { display: none; }
 }
+
+.cr-warning { font-size: 12px; margin: 6px 0; padding: 6px 8px; border-radius: 6px; background: #3a2a10; color: #ffcf80; }
+.cr-code { font-size: 18px; letter-spacing: 0.12em; color: var(--text); }
+.cr-side code { font-size: 12px; color: var(--accent); word-break: break-all; }
+.cr-tile-action { position: absolute; right: 6px; top: 6px; padding: 4px 8px; font-size: 12px; }

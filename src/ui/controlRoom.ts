@@ -1,20 +1,33 @@
 // The operator and QA view: live camera grid, findings, manual checks for blind spots,
 // QA sign-off and the printable clearance record.
 
-import { CAPTURE_WIDTH, type PlantCamera } from '../plant/cameras';
-import type { ChangeDetector, Region } from '../pipeline/change';
+import { CAPTURE_WIDTH } from '../plant/cameras';
+import { LIVE_CAMERA, type ChangeDetector, type Region } from '../pipeline/change';
 import { analyzeRegion, thumbnail } from '../pipeline/analyze';
 import {
   loadRuns, now, OPEN_STATUSES, runState, saveRun,
   type ClearanceRun, type Finding, type FindingStatus,
 } from '../clearance/run';
 
+/** A camera the control room watches: a simulated plant camera, or a real phone (`live`). */
+export interface CameraFeed {
+  id: string;
+  name: string;
+  live?: boolean;
+}
+
+export interface PhoneInfo {
+  joinCode: string;
+  secure: boolean;
+  urls: string[];
+}
+
 export interface ControlRoomDeps {
-  cams: PlantCamera[];
+  cams: CameraFeed[];
   /** Renders a camera into a canvas of any size. */
-  draw(cam: PlantCamera, canvas: HTMLCanvasElement): void;
+  draw(cam: CameraFeed, canvas: HTMLCanvasElement): void;
   /** Full-size frame; reused between calls, so use it straight away. */
-  capture(cam: PlantCamera): HTMLCanvasElement;
+  capture(cam: CameraFeed): HTMLCanvasElement;
   detector: ChangeDetector;
   /** Spots the cameras cannot fully see; they need a manual check every clearance. */
   blindSpots: { spot: string; area: string; coverage: number }[];
@@ -23,9 +36,15 @@ export interface ControlRoomDeps {
   /** Where a region sits in the room, from calibrated camera geometry, plus the nearest named spot. */
   locate(cameraId: string, region: Region): { location: [number, number, number]; where: string } | null;
   /** Whether the local API has a Meta key, and whether it points at the offline test stand-in. */
-  apiStatus(): Promise<{ connected: boolean; standIn: boolean }>;
+  apiStatus(): Promise<{ connected: boolean; standIn: boolean; phone?: PhoneInfo }>;
   onExit(): void;
 }
+
+/** A view where more than this share of pixels changed means the camera moved or the lights changed. */
+const MOVED_SHARE = 0.25;
+/** A phone's clean picture is learned from this many frames, a little over one per phone upload. */
+const CLEAN_FRAMES = 5;
+const CLEAN_FRAME_GAP_MS = 1100;
 
 const STATUS_TEXT: Record<FindingStatus, string> = {
   'awaiting-ai': 'Change found · AI not connected, check by eye',
@@ -55,12 +74,16 @@ const distance = (a: [number, number, number], b: [number, number, number]) =>
 
 export class ControlRoom {
   private readonly root = document.getElementById('control')!;
-  private readonly tiles: { cam: PlantCamera; canvas: HTMLCanvasElement; el: HTMLElement }[] = [];
+  private readonly cams: CameraFeed[];
+  private readonly tiles: { cam: CameraFeed; canvas: HTMLCanvasElement; el: HTMLElement }[] = [];
   private tileIndex = 0;
   private run: ClearanceRun | null = null;
   private busy = false;
   private api = false;
   private standIn = false;
+  private phone?: PhoneInfo;
+  /** Cameras that couldn't be checked on the last scan, and why. */
+  private readonly warnings = new Map<string, string>();
   private counter = 0;
 
   constructor(private readonly deps: ControlRoomDeps) {
@@ -78,23 +101,57 @@ export class ControlRoom {
       <dialog id="cr-record"></dialog>`;
     this.root.querySelector('#cr-exit')!.addEventListener('click', () => deps.onExit());
 
-    const grid = this.root.querySelector('#cr-grid')!;
-    for (const cam of deps.cams) {
-      const el = document.createElement('div');
-      el.className = 'cr-tile';
-      const canvas = Object.assign(document.createElement('canvas'), { width: 480, height: 270 });
-      const label = document.createElement('span');
-      label.textContent = `${cam.id} · ${cam.name}`;
-      el.append(canvas, label);
-      grid.append(el);
-      this.tiles.push({ cam, canvas, el });
-    }
+    this.cams = [...deps.cams];
+    for (const cam of this.cams) this.addTile(cam);
     this.render();
+  }
+
+  /** Adds a camera that joined after start-up, such as a phone. */
+  addCamera(cam: CameraFeed) {
+    if (this.cams.some((c) => c.id === cam.id)) return;
+    this.cams.push(cam);
+    this.addTile(cam);
+    this.render();
+  }
+
+  private addTile(cam: CameraFeed) {
+    const el = document.createElement('div');
+    el.className = 'cr-tile';
+    const canvas = Object.assign(document.createElement('canvas'), { width: 480, height: 270 });
+    const label = document.createElement('span');
+    label.textContent = cam.live ? `${cam.name} · live phone` : `${cam.id} · ${cam.name}`;
+    el.append(canvas, label);
+    if (cam.live) {
+      // A real camera has no known-clean picture until someone confirms the area is clean.
+      // It watches for a few seconds so it can learn how much the camera flickers on its own.
+      const button = document.createElement('button');
+      button.className = 'cr-tile-action';
+      button.textContent = 'Set clean picture';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        const frames: HTMLCanvasElement[] = [];
+        for (let i = CLEAN_FRAMES; i > 0; i--) {
+          button.textContent = `Hold still… ${i}`;
+          frames.push(copyCanvas(this.deps.capture(cam)));
+          await new Promise((r) => setTimeout(r, CLEAN_FRAME_GAP_MS));
+        }
+        this.deps.detector.setReference(cam.id, frames);
+        this.warnings.delete(cam.id);
+        button.textContent = 'Reset clean picture';
+        button.disabled = false;
+        this.render();
+      });
+      el.append(button);
+    }
+    // Phones go first: they're the real-footage part of the demo.
+    const grid = this.root.querySelector('#cr-grid')!;
+    if (cam.live) grid.prepend(el); else grid.append(el);
+    this.tiles.push({ cam, canvas, el });
   }
 
   async show() {
     this.root.hidden = false;
-    ({ connected: this.api, standIn: this.standIn } = await this.deps.apiStatus());
+    ({ connected: this.api, standIn: this.standIn, phone: this.phone } = await this.deps.apiStatus());
     this.render();
   }
 
@@ -153,11 +210,21 @@ export class ControlRoom {
 
     // For each new finding, the clearest view so far: the camera where the change covers the most
     // pixels. That view becomes the thumbnail and is what the AI gets to look at.
-    const best = new Map<Finding, { cam: PlantCamera; region: Region; frame: HTMLCanvasElement }>();
+    const best = new Map<Finding, { cam: CameraFeed; region: Region; frame: HTMLCanvasElement }>();
     let camerasWithChanges = 0, regionCount = 0;
-    for (const cam of this.deps.cams) {
+    this.warnings.clear();
+    for (const cam of this.cams) {
+      if (!this.deps.detector.hasReference(cam.id)) {
+        this.warnings.set(cam.id, 'no clean picture yet: press "Set clean picture" while the area is clean');
+        continue;
+      }
       const frame = this.deps.capture(cam);
-      const regions = this.deps.detector.detect(cam.id, frame);
+      const regions = this.detect(cam, frame);
+      // Half the picture changed: the camera was bumped or the lights changed, not a leftover.
+      if (this.deps.detector.changedShare(cam.id) > MOVED_SHARE) {
+        this.warnings.set(cam.id, 'the view changed a lot (camera moved or lights changed): set a new clean picture');
+        continue;
+      }
       if (regions.length) camerasWithChanges++;
       regionCount += regions.length;
       for (const region of regions) {
@@ -218,8 +285,8 @@ export class ControlRoom {
     if (!this.run) return;
     if (simulateRemoval) for (const v of finding.views) this.deps.simulateRemoval(v.cameraId, v.region);
     const stillSeen = finding.views.filter((v) => {
-      const cam = this.deps.cams.find((c) => c.id === v.cameraId)!;
-      return this.deps.detector.detect(cam.id, this.deps.capture(cam)).some((r) => overlaps(r, v.region));
+      const cam = this.cams.find((c) => c.id === v.cameraId)!;
+      return this.detect(cam, this.deps.capture(cam)).some((r) => overlaps(r, v.region));
     });
     const ids = finding.views.map((v) => v.cameraId).join(', ');
     if (stillSeen.length) {
@@ -229,6 +296,10 @@ export class ControlRoom {
     }
     saveRun(this.run);
     this.render();
+  }
+
+  private detect(cam: CameraFeed, frame: HTMLCanvasElement): Region[] {
+    return this.deps.detector.detect(cam.id, frame, cam.live ? LIVE_CAMERA : {});
   }
 
   private resolve(finding: Finding, resolution: string) {
@@ -250,7 +321,7 @@ export class ControlRoom {
       title.textContent = 'No clearance running';
       badge.textContent = '';
       badge.dataset.state = '';
-      side.innerHTML = this.startForm();
+      side.innerHTML = this.startForm() + this.phoneSection();
       side.querySelector('form')!.addEventListener('submit', (e) => {
         e.preventDefault();
         this.start(e.currentTarget as HTMLFormElement);
@@ -277,6 +348,10 @@ export class ControlRoom {
       <p class="cr-note">${this.standIn ? '<b class="cr-error">TEST STAND-IN, not Meta\'s models: AI answers are fake.</b> '
         : this.api ? 'AI connected: SAM 3.1 + Muse Spark check every change.' : 'AI not connected: changes are flagged for a person to check.'}
         ${run.scans.length ? ` Last scan ${clock(run.scans.at(-1)!.at)}.` : ''}</p>
+      ${[...this.warnings].map(([id, why]) => {
+        const cam = this.cams.find((c) => c.id === id);
+        return `<p class="cr-warning"><b>${esc(cam?.name ?? id)}</b> not checked: ${esc(why)}.</p>`;
+      }).join('')}
 
       <h3>Findings <span class="count">${open.length} open · ${resolved.length} resolved</span></h3>
       ${open.length ? open.map((f) => this.findingCard(f, locked)).join('') : `<p class="cr-empty">${run.scans.length ? 'No open findings.' : 'Scanning…'}</p>`}
@@ -297,7 +372,8 @@ export class ControlRoom {
         <button data-act="new">Start a new clearance</button>` : ''}
 
       ${resolved.length ? `<h3>Resolved</h3>${resolved.map((f) => `
-        <div class="cr-resolved"><b>${esc(f.where ?? f.cameraId)}</b> ${esc(f.item ?? 'change')} · ${esc(f.resolution ?? '')} · ${clock(f.resolvedAt)}</div>`).join('')}` : ''}`;
+        <div class="cr-resolved"><b>${esc(f.where ?? f.cameraId)}</b> ${esc(f.item ?? 'change')} · ${esc(f.resolution ?? '')} · ${clock(f.resolvedAt)}</div>`).join('')}` : ''}
+      ${this.phoneSection()}`;
 
     side.querySelector('[data-act="scan"]')?.addEventListener('click', () => this.scanAll());
     side.querySelector('[data-act="record"]')?.addEventListener('click', () => this.showRecord());
@@ -331,6 +407,18 @@ export class ControlRoom {
       saveRun(run);
       this.render();
     });
+  }
+
+  private phoneSection() {
+    const phones = this.cams.filter((c) => c.live).length;
+    const p = this.phone;
+    const how = !p ? ''
+      : !p.secure ? '<p class="cr-note">To add a phone camera, restart ClearLine with <code>npm run dev:phone</code>.</p>'
+      : `<p class="cr-note">On a phone on the same Wi-Fi, open
+          ${p.urls.map((u) => `<br><code>${esc(u)}</code>`).join('') || '<br>(no network address found)'}
+          <br>and enter join code <b class="cr-code">${esc(p.joinCode)}</b>. The phone will warn about the
+          certificate once; that's expected for a local test.</p>`;
+    return `<h3>Phone cameras <span class="count">${phones} connected</span></h3>${how}`;
   }
 
   private startForm() {

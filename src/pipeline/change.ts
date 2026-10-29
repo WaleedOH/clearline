@@ -41,29 +41,74 @@ function mean(values: Float32Array): number {
   return sum / values.length;
 }
 
+export interface DetectOptions {
+  /** Brightness difference that always counts as a change. */
+  threshold?: number;
+  /** Regions with fewer changed pixels than this are treated as noise. */
+  minPixels?: number;
+}
+
+/**
+ * Real cameras. Their per-pixel flicker is learned when the clean picture is taken (see
+ * setReference with several frames), so the fixed threshold can stay low and tiny items survive.
+ */
+export const LIVE_CAMERA: DetectOptions = { threshold: 10, minPixels: 2 };
+/** A pixel must change by this many times its own learned flicker to count. */
+const NOISE_SIGMAS = 4;
+
 export class ChangeDetector {
   private readonly references = new Map<string, Float32Array>();
+  /** Per-pixel standard deviation across the clean frames, for cameras given more than one. */
+  private readonly noise = new Map<string, Float32Array>();
+  private readonly shares = new Map<string, number>();
 
-  setReference(cameraId: string, frame: CanvasImageSource) {
-    this.references.set(cameraId, luminance(frame));
+  /** Share of the frame (0-1) that changed in the camera's last detect: high means it moved. */
+  changedShare(cameraId: string): number {
+    return this.shares.get(cameraId) ?? 0;
+  }
+
+  /**
+   * Saves what clean looks like. Given several frames of the clean area (a real camera held still
+   * for a few seconds), it also learns how much each pixel flickers on its own.
+   */
+  setReference(cameraId: string, frames: CanvasImageSource | CanvasImageSource[]) {
+    const list = (Array.isArray(frames) ? frames : [frames]).map(luminance);
+    const avg = new Float32Array(W * H);
+    for (const f of list) for (let i = 0; i < avg.length; i++) avg[i] += f[i] / list.length;
+    this.references.set(cameraId, avg);
+    if (list.length < 2) {
+      this.noise.delete(cameraId);
+      return;
+    }
+    const sd = new Float32Array(W * H);
+    for (let i = 0; i < sd.length; i++) {
+      let v = 0;
+      for (const f of list) v += (f[i] - avg[i]) ** 2;
+      sd[i] = Math.sqrt(v / (list.length - 1));
+    }
+    this.noise.set(cameraId, sd);
   }
 
   hasReference(cameraId: string): boolean {
     return this.references.has(cameraId);
   }
 
-  detect(cameraId: string, frame: CanvasImageSource): Region[] {
+  detect(cameraId: string, frame: CanvasImageSource, { threshold = THRESHOLD, minPixels = 1 }: DetectOptions = {}): Region[] {
     const ref = this.references.get(cameraId);
     if (!ref) throw new Error(`No clean reference for ${cameraId}`);
     const cur = luminance(frame);
 
     // Undo overall brightness drift (lights dimmed, daylight) so only local changes remain.
     const gain = mean(ref) / Math.max(mean(cur), 1);
+    const sd = this.noise.get(cameraId);
     const changed = new Uint8Array(W * H);
+    let count = 0;
     for (let i = 0; i < changed.length; i++) {
-      if (Math.abs(cur[i] * gain - ref[i]) > THRESHOLD) changed[i] = 1;
+      const limit = sd ? Math.max(threshold, NOISE_SIGMAS * sd[i]) : threshold;
+      if (Math.abs(cur[i] * gain - ref[i]) > limit) { changed[i] = 1; count++; }
     }
-    return this.regions(changed);
+    this.shares.set(cameraId, count / changed.length);
+    return this.regions(changed).filter((r) => r.pixels >= minPixels);
   }
 
   /** Groups changed pixels into boxes (connected components, joining pixels up to JOIN apart). */
