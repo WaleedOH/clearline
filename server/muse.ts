@@ -1,6 +1,7 @@
 // Muse Spark through the Meta Model API: decides whether what a camera found is a leftover.
 
 export const MUSE_MODEL = 'muse-spark-1.3';
+export const MUSE_REASONING = 'low';
 /** Muse Spark 1.3 standard pricing per token (Meta pricing page, Oct 2026). */
 export const MUSE_INPUT_COST = 1.25 / 1e6;
 export const MUSE_OUTPUT_COST = 4.25 / 1e6;
@@ -73,6 +74,8 @@ export async function judge(apiKey: string, apiBase: string, req: JudgeRequest):
     body: JSON.stringify({
       model: MUSE_MODEL,
       instructions: INSTRUCTIONS,
+      // A yes/no inspection call doesn't need deep reasoning; low effort answers in seconds, not tens of seconds.
+      reasoning: { effort: MUSE_REASONING },
       input: [{
         type: 'message',
         role: 'user',

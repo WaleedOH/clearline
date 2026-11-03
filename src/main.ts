@@ -382,6 +382,53 @@ $('open-control').addEventListener('click', () => controlRoom.show());
 // The simulated line starts clean, so every camera can save its clean reference right away.
 markClean();
 
+/**
+ * End-to-end scoring with the real models: random leftovers, a full control-room scan, and the AI's
+ * verdicts checked against where the simulator actually put things.
+ */
+async function evaluateEndToEnd(rounds = 10, itemsPerRound = 3) {
+  const NEAR = 0.3;   // metres: a finding this close to an item is about that item
+  const byType: Record<string, { items: number; visible: number; leftover: number; unclear: number; belongs: number; notAnalysed: number; notRaised: number }> = {};
+  let falseAlarms = 0, errors = 0, findingsTotal = 0, msTotal = 0;
+  for (let round = 0; round < rounds; round++) {
+    leftovers.clear();
+    markClean();
+    controlRoom.discardRun();
+    leftovers.scatter(itemsPerRound);
+    refreshTruth();
+    const started = performance.now();
+    const findings = await controlRoom.testScan();
+    msTotal += performance.now() - started;
+    findingsTotal += findings.length;
+    const matched = new Set<string>();
+    for (const t of truth) {
+      const item = leftovers.items.find((i) => i.id === t.id)!;
+      const row = (byType[t.type] ??= { items: 0, visible: 0, leftover: 0, unclear: 0, belongs: 0, notAnalysed: 0, notRaised: 0 });
+      row.items++;
+      if (!t.sightings.length) continue;
+      row.visible++;
+      const p = item.object.position;
+      const near = findings.filter((f) => f.location && Math.hypot(f.location[0] - p.x, f.location[1] - p.y, f.location[2] - p.z) < NEAR);
+      near.forEach((f) => matched.add(f.id));
+      if (!near.length) row.notRaised++;
+      else if (near.some((f) => f.status === 'leftover')) row.leftover++;
+      else if (near.some((f) => f.status === 'unclear' || f.status === 'error')) row.unclear++;
+      else if (near.some((f) => f.status === 'belongs')) row.belongs++;
+      else row.notAnalysed++;
+    }
+    for (const f of findings) {
+      if (f.status === 'error') errors++;
+      if (!matched.has(f.id) && (f.status === 'leftover' || f.status === 'unclear')) falseAlarms++;
+    }
+  }
+  controlRoom.discardRun();
+  leftovers.clear();
+  syncPins();
+  refreshTruth();
+  const status = await (await fetch('/api/status')).json();
+  return { rounds, itemsPerRound, byType, findingsTotal, falseAlarms, errors, avgScanMs: Math.round(msTotal / rounds), spentUsd: status.spentUsd };
+}
+
 async function refreshApiStatus() {
   try {
     const s = await (await fetch('/api/status')).json();
@@ -415,6 +462,7 @@ Object.assign(window, {
     markClean,
     scan: () => Object.fromEntries(runScan()),
     evaluateChangeDetection,
+    evaluateEndToEnd,
     /** Internals, for tests in the browser console. */
     debug: { detector, phoneFeeds },
   },

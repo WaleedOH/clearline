@@ -266,7 +266,8 @@ export class ControlRoom {
     saveRun(run);
     this.render();
 
-    for (const [finding, { frame }] of this.api ? best : []) {
+    // All findings go to the AI at once; each card updates as its answer comes back.
+    await Promise.all([...(this.api ? best : [])].map(async ([finding, { frame }]) => {
       try {
         const a = await analyzeRegion(frame, finding.region, finding.cameraId, finding.cameraName);
         Object.assign(finding, { status: a.verdict, item: a.item, reason: a.reason, samFinds: a.samFinds });
@@ -275,8 +276,27 @@ export class ControlRoom {
       }
       saveRun(run);
       this.render();
-    }
+    }));
     this.busy = false;
+    this.render();
+  }
+
+  /** For automated tests: starts a throwaway run if none exists, scans, and resolves once the AI has answered. */
+  async testScan(): Promise<Finding[]> {
+    ({ connected: this.api, standIn: this.standIn } = await this.deps.apiStatus());
+    if (!this.run) {
+      this.run = {
+        id: `TEST-${Date.now().toString(36).toUpperCase()}`,
+        line: 'Test', previousBatch: 'A', nextBatch: 'B', operator: 'Test runner',
+        startedAt: now(), scans: [], findings: [], manualChecks: [],
+      };
+    }
+    await this.scanAll();
+    return this.run.findings;
+  }
+
+  discardRun() {
+    this.run = null;
     this.render();
   }
 

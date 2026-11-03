@@ -114,13 +114,12 @@ export function clearlineApi({ apiKey, apiBase, spendLimitUsd }: Options): Plugi
             if (typeof image !== 'string' || !Array.isArray(prompts) || !prompts.length) {
               return send(res, 400, { error: 'Expected { image, prompts[], width, height }' });
             }
-            const detections = [];
-            for (const prompt of prompts as string[]) {
-              samCalls++;
-              spentUsd += SAM_COST_PER_IMAGE;
-              const boxes = await segment(apiKey, apiBase, image, prompt, width, height);
-              detections.push(...boxes.map((b) => ({ label: prompt, ...b })));
-            }
+            // One SAM call per phrase, all at once: the rate limit is 3,000 a minute.
+            samCalls += prompts.length;
+            spentUsd += SAM_COST_PER_IMAGE * prompts.length;
+            const results = await Promise.all((prompts as string[]).map(async (prompt) =>
+              (await segment(apiKey, apiBase, image, prompt, width, height)).map((b) => ({ label: prompt, ...b }))));
+            const detections = results.flat();
             log(`SAM 3.1: ${prompts.length} call(s), ${detections.length} match(es), ${Date.now() - started} ms`);
             return send(res, 200, { detections, ms: Date.now() - started, ...usage() });
           }

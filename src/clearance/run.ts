@@ -96,6 +96,7 @@ export function loadRuns(): ClearanceRun[] {
 }
 
 export function saveRun(run: ClearanceRun) {
+  if (run.id.startsWith('TEST-')) return;   // automated test runs don't go in the history
   try {
     const runs = loadRuns().filter((r) => r.id !== run.id);
     runs.unshift(run);

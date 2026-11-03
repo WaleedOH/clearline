@@ -8,10 +8,11 @@ import type { Region } from './change';
 import { checklistsFor, SAM_PROMPTS } from './checklists';
 
 /** Crops are at least this big (capture pixels) so the model sees the surroundings. */
-const MIN_CONTEXT = 200;
+const MIN_CONTEXT = 140;
 /** Crops are enlarged so their longer side is about this many pixels. */
 const TARGET_SIDE = 768;
-const MAX_ZOOM = 4;
+/** Tested live: a 15 px tablet is found more confidently at 6x than at 4x. */
+const MAX_ZOOM = 6;
 
 export interface SamFind {
   label: string;

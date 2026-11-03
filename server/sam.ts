@@ -29,7 +29,9 @@ export function parseSamBoxes(text: string, width: number, height: number): SamB
       y1: fields.y1 * sy,
       x2: (fields.x2 + 1) * sx,
       y2: (fields.y2 + 1) * sy,
-      ...(Number.isFinite(fields.confidence) ? { confidence: fields.confidence } : {}),
+      // The live API writes confidence as `c=`; the docs example used `confidence=`.
+      ...(Number.isFinite(fields.c) ? { confidence: fields.c }
+        : Number.isFinite(fields.confidence) ? { confidence: fields.confidence } : {}),
     });
   }
   return boxes;
@@ -66,5 +68,11 @@ export async function segment(
     }),
   });
   if (!res.ok) throw new Error(`SAM 3.1 returned ${res.status}: ${(await res.text()).slice(0, 500)}`);
-  return parseSamBoxes(outputText(await res.json()), width, height);
+  const reply = await res.json();
+  const text = outputText(reply);
+  if (process.env.CLEARLINE_DEBUG) {
+    // Masks are long; show the shape of the reply without the mask data.
+    console.log(`[sam-3.1 "${prompt}"] keys=${Object.keys(reply).join(',')} text=${text.replace(/data=[^|]*/g, 'data=…').slice(0, 400)}`);
+  }
+  return parseSamBoxes(text, width, height);
 }

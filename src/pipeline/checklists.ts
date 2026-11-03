@@ -48,8 +48,14 @@ export const CAMERA_AREAS: Record<string, string[]> = {
   'CAM-16': ['Conveyor B'],
 };
 
-/** What SAM 3.1 is asked to look for inside a changed region. Short noun phrases work best. */
-export const SAM_PROMPTS = ['tablet', 'capsule', 'label', 'vial', 'carton'];
+/**
+ * What SAM 3.1 is asked to look for inside a changed region. Tested against the live model: it
+ * needs descriptive phrases. "tablet" finds nothing, "white pill" and "small white round object" do.
+ */
+export const SAM_PROMPTS = [
+  'small white round object', 'white pill', 'two-colour capsule pill',
+  'printed paper label', 'small glass vial', 'small cardboard box',
+];
 
 /** Phone cameras watch the real mock line: a tray standing in for a stretch of conveyor. */
 const MOCK_TRAY: AreaChecklist = {
