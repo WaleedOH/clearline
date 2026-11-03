@@ -47,9 +47,9 @@ function outputText(reply: any): string {
   return parts.join('');
 }
 
-/** At most this many SAM calls in flight; more than ~8 at once trips the API's burst limit. */
-const MAX_IN_FLIGHT = 4;
-const RETRY_WAITS_MS = [1000, 2000, 4000];
+/** At most this many SAM calls in flight: measured live, 4 at once still trips the API's burst limit. */
+const MAX_IN_FLIGHT = 2;
+const RETRY_WAITS_MS = [2000, 4000, 8000, 16000];
 let inFlight = 0;
 const waiting: (() => void)[] = [];
 

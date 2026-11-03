@@ -79,10 +79,15 @@ export async function analyzeRegion(
 ): Promise<Analysis> {
   const crop = cropRegion(frame, region);
 
+  // If SAM 3.1 is unavailable (rate limit, outage), Muse Spark still judges from the picture alone.
+  let samError: string | undefined;
   const detect = await post<{ detections: { label: string; confidence?: number; x1: number; y1: number; x2: number; y2: number }[] }>(
     '/api/detect',
     { image: crop.plain.toDataURL('image/png'), prompts: SAM_PROMPTS, width: crop.plain.width, height: crop.plain.height },
-  );
+  ).catch((err: Error) => {
+    samError = err.message;
+    return { detections: [] };
+  });
   // Map boxes from the enlarged crop back to capture pixels, and keep only those touching the change.
   const samFinds: SamFind[] = detect.detections
     .map((d) => ({
@@ -102,7 +107,13 @@ export async function analyzeRegion(
     samFinds: samFinds.map(({ label, confidence }) => ({ label, confidence })),
   });
 
-  return { samFinds, verdict: judged.verdict, item: judged.item, reason: judged.reason, recheck: judged.recheck };
+  return {
+    samFinds,
+    verdict: judged.verdict,
+    item: judged.item,
+    reason: samError ? `${judged.reason} (SAM 3.1 unavailable for this check: ${samError.slice(0, 80)})` : judged.reason,
+    recheck: judged.recheck,
+  };
 }
 
 /** A small preview of the region for alert cards and the clearance record. */
