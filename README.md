@@ -5,7 +5,7 @@
 Fixed cameras watch the line. When something is left behind from the previous batch, SAM 3.1 outlines it,
 Muse Spark judges it against the area's checklist, operators remove and re-check, and QA signs a timestamped record.
 
-▶ **[Watch the 2-minute demo](https://github.com/WaleedOH/clearline/releases/download/v1.0/clearline-demo.mp4)**
+▶ **[Watch the demo (2 min 43 s)](https://github.com/WaleedOH/clearline/releases/download/v1.0/clearline-demo.mp4)**
 · [Results on the live Meta models](#results-on-the-live-meta-models) · [Try it in two minutes](#try-it-in-two-minutes)
 
 > Built for the **Meta Global AI Developer Hackathon** (Oct 26 – Nov 4, 2026), indie track, theme *Build for Your World*.
