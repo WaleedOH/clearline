@@ -21,6 +21,16 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 (checklist reasoning), both called through the **Meta Model API** at `api.meta.ai` from the local server in
 `server/`. No other AI models are used.
 
+## What it looks like
+
+| The virtual plant: 16 cameras on an L-shaped line | The control room: one alert per object, every camera that sees it |
+|---|---|
+| ![Virtual plant](docs/virtual-plant.jpg) | ![Control room](docs/control-room.png) |
+
+| What the AI saw: the change in red, SAM 3.1's outline in green | The clearance record QA signs |
+|---|---|
+| ![SAM evidence](docs/sam-evidence.jpg) | ![Clearance record](docs/clearance-record.jpg) |
+
 ## Status
 
 - [x] **Virtual plant**: a 16 x 12 m packaging room with an L-shaped line (feeder, conveyor with guide rails,
