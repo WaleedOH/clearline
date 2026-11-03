@@ -78,7 +78,9 @@ the simulator actually put them. `window.clearline.evaluateEndToEnd(10, 3)` in t
 
 By item type: capsules 7/7, labels 7/7, cartons 1/1, vials 7/8 (1 unclear), tablets 4/5 (1 unclear).
 Stage 1 alone (change detection, no AI) caught 106 of 106 visible items with 0 false alarms over 30 random
-scenarios, and a phone camera on a real surface raised a single mint with no noise alarms.
+scenarios. The phone camera path was tested with a simulated phone feed (JPEG uploads once a second): it
+raised a single tablet with no noise alarms and reported a bumped camera instead of false alerts. It has not
+yet been tested on a physical mock line.
 
 ### What tuning on the live models taught us
 
