@@ -47,11 +47,48 @@ function outputText(reply: any): string {
   return parts.join('');
 }
 
+/** At most this many SAM calls in flight; more than ~8 at once trips the API's burst limit. */
+const MAX_IN_FLIGHT = 4;
+const RETRY_WAITS_MS = [1000, 2000, 4000];
+let inFlight = 0;
+const waiting: (() => void)[] = [];
+
+async function withSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (inFlight >= MAX_IN_FLIGHT) await new Promise<void>((resolve) => waiting.push(resolve));
+  inFlight++;
+  try {
+    return await work();
+  } finally {
+    inFlight--;
+    waiting.shift()?.();
+  }
+}
+
 /** Finds every match for `prompt` (a short noun phrase like "white tablet") in the image. */
-export async function segment(
+export function segment(
   apiKey: string, apiBase: string, imageDataUrl: string, prompt: string, width: number, height: number,
 ): Promise<SamBox[]> {
-  const res = await fetch(`${apiBase}/responses`, {
+  return withSlot(async () => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await request(apiKey, apiBase, imageDataUrl, prompt);
+      if (res.status === 429 && attempt < RETRY_WAITS_MS.length) {
+        await new Promise((r) => setTimeout(r, RETRY_WAITS_MS[attempt]));
+        continue;
+      }
+      if (!res.ok) throw new Error(`SAM 3.1 returned ${res.status}: ${(await res.text()).slice(0, 500)}`);
+      const reply = await res.json();
+      const text = outputText(reply);
+      if (process.env.CLEARLINE_DEBUG) {
+        // Masks are long; show the shape of the reply without the mask data.
+        console.log(`[sam-3.1 "${prompt}"] text=${text.replace(/data=[^|]*/g, 'data=…').slice(0, 300)}`);
+      }
+      return parseSamBoxes(text, width, height);
+    }
+  });
+}
+
+function request(apiKey: string, apiBase: string, imageDataUrl: string, prompt: string): Promise<Response> {
+  return fetch(`${apiBase}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -67,12 +104,4 @@ export async function segment(
       metadata: { mask_encoding: 'one_bit', include_confidence: 'true' },
     }),
   });
-  if (!res.ok) throw new Error(`SAM 3.1 returned ${res.status}: ${(await res.text()).slice(0, 500)}`);
-  const reply = await res.json();
-  const text = outputText(reply);
-  if (process.env.CLEARLINE_DEBUG) {
-    // Masks are long; show the shape of the reply without the mask data.
-    console.log(`[sam-3.1 "${prompt}"] keys=${Object.keys(reply).join(',')} text=${text.replace(/data=[^|]*/g, 'data=…').slice(0, 400)}`);
-  }
-  return parseSamBoxes(text, width, height);
 }

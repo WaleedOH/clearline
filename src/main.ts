@@ -390,6 +390,7 @@ async function evaluateEndToEnd(rounds = 10, itemsPerRound = 3) {
   const NEAR = 0.3;   // metres: a finding this close to an item is about that item
   const byType: Record<string, { items: number; visible: number; leftover: number; unclear: number; belongs: number; notAnalysed: number; notRaised: number }> = {};
   let falseAlarms = 0, errors = 0, findingsTotal = 0, msTotal = 0;
+  const errorMessages = new Map<string, number>();
   for (let round = 0; round < rounds; round++) {
     leftovers.clear();
     markClean();
@@ -417,7 +418,11 @@ async function evaluateEndToEnd(rounds = 10, itemsPerRound = 3) {
       else row.notAnalysed++;
     }
     for (const f of findings) {
-      if (f.status === 'error') errors++;
+      if (f.status === 'error') {
+        errors++;
+        const key = (f.error ?? 'unknown').slice(0, 120);
+        errorMessages.set(key, (errorMessages.get(key) ?? 0) + 1);
+      }
       if (!matched.has(f.id) && (f.status === 'leftover' || f.status === 'unclear')) falseAlarms++;
     }
   }
@@ -426,7 +431,11 @@ async function evaluateEndToEnd(rounds = 10, itemsPerRound = 3) {
   syncPins();
   refreshTruth();
   const status = await (await fetch('/api/status')).json();
-  return { rounds, itemsPerRound, byType, findingsTotal, falseAlarms, errors, avgScanMs: Math.round(msTotal / rounds), spentUsd: status.spentUsd };
+  return {
+    rounds, itemsPerRound, byType, findingsTotal, falseAlarms, errors,
+    errorMessages: Object.fromEntries(errorMessages),
+    avgScanMs: Math.round(msTotal / rounds), spentUsd: status.spentUsd,
+  };
 }
 
 async function refreshApiStatus() {
@@ -464,7 +473,7 @@ Object.assign(window, {
     evaluateChangeDetection,
     evaluateEndToEnd,
     /** Internals, for tests in the browser console. */
-    debug: { detector, phoneFeeds },
+    debug: { detector, phoneFeeds, controlRoom },
   },
 });
 

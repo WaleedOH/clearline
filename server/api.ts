@@ -130,7 +130,9 @@ export function clearlineApi({ apiKey, apiBase, spendLimitUsd }: Options): Plugi
           log(`Muse Spark: ${verdict.verdict} (${verdict.item}), ${Date.now() - started} ms`);
           return send(res, 200, { ...verdict, ms: Date.now() - started, ...usage() });
         } catch (err) {
-          send(res, 500, { error: err instanceof Error ? err.message : String(err) });
+          const message = err instanceof Error ? err.message : String(err);
+          server.config.logger.error(`[clearline] ${req.url} failed: ${message.slice(0, 300)}`);
+          send(res, 500, { error: message });
         }
       });
     },
