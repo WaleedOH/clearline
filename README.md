@@ -17,6 +17,10 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 > Built for the **Meta Global AI Developer Hackathon** (Oct 26 – Nov 4, 2026).
 > Everything in this repository was created during the hackathon. Built with the help of AI coding assistants.
 
+**Meta models used, and where they run:** `sam-3.1` (object finding and outlines) and `muse-spark-1.3`
+(checklist reasoning), both called through the **Meta Model API** at `api.meta.ai` from the local server in
+`server/`. No other AI models are used.
+
 ## Status
 
 - [x] **Virtual plant**: a 16 x 12 m packaging room with an L-shaped line (feeder, conveyor with guide rails,
