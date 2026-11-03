@@ -54,7 +54,7 @@ export const CAMERA_AREAS: Record<string, string[]> = {
  */
 export const SAM_PROMPTS = [
   'small white round object', 'white pill', 'two-colour capsule pill',
-  'printed paper label', 'small glass vial', 'small cardboard box',
+  'printed paper label', 'small glass vial', 'small rectangular package',
 ];
 
 /** Phone cameras watch the real mock line: a tray standing in for a stretch of conveyor. */

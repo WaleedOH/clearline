@@ -116,12 +116,27 @@ export async function analyzeRegion(
   };
 }
 
-/** A small preview of the region for alert cards and the clearance record. */
-export function thumbnail(frame: HTMLCanvasElement, region: Region, size = 160): string {
+/**
+ * A preview of the region for alert cards and the clearance record: the change outlined in red,
+ * and, once SAM 3.1 has answered, each thing it found outlined in green with its label.
+ */
+export function thumbnail(frame: HTMLCanvasElement, region: Region, samFinds: SamFind[] = [], size = 320): string {
   const crop = cropRegion(frame, region);
   const c = document.createElement('canvas');
   c.width = size;
   c.height = Math.round(size * crop.h / crop.w);
-  c.getContext('2d')!.drawImage(crop.outlined, 0, 0, c.width, c.height);
+  const ctx = c.getContext('2d')!;
+  ctx.drawImage(crop.outlined, 0, 0, c.width, c.height);
+  const k = size / crop.w;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#3ccf7a';
+  ctx.fillStyle = '#3ccf7a';
+  ctx.font = 'bold 11px system-ui';
+  // Boxes for the same object overlap, so the labels are stacked at the top-left instead.
+  samFinds.forEach((f, i) => {
+    const x = (f.box.x1 - crop.x) * k, y = (f.box.y1 - crop.y) * k;
+    ctx.strokeRect(x, y, (f.box.x2 - f.box.x1) * k, (f.box.y2 - f.box.y1) * k);
+    ctx.fillText(`SAM 3.1: ${f.label}${f.confidence ? ` ${Math.round(f.confidence * 100)}%` : ''}`, 4, 14 + i * 13);
+  });
   return c.toDataURL('image/jpeg', 0.85);
 }

@@ -271,6 +271,7 @@ export class ControlRoom {
       try {
         const a = await analyzeRegion(frame, finding.region, finding.cameraId, finding.cameraName);
         Object.assign(finding, { status: a.verdict, item: a.item, reason: a.reason, samFinds: a.samFinds });
+        finding.thumb = thumbnail(frame, finding.region, a.samFinds);   // now with SAM's outlines drawn on
       } catch (err) {
         Object.assign(finding, { status: 'error', error: err instanceof Error ? err.message : String(err) });
       }
