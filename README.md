@@ -36,9 +36,35 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 - [x] **Phone cameras**: a phone joins the control room as a live camera with a join code. Its clean
       picture is learned over a few seconds, including how much each pixel flickers, so small items are
       caught without noise alarms; a bumped camera gives a warning instead of false alerts
-- [ ] First run against the real Meta models (waiting for API credits)
-- [ ] Automatic scoring over hundreds of random scenarios, end to end
+- [x] **Tuned on the live Meta models**: SAM 3.1 needs descriptive phrases ("white pill", not "tablet"),
+      6x crops, at most 2 calls in flight with retries, and Muse Spark at low reasoning effort (3–7 s a verdict)
+- [x] **End-to-end scoring** against the simulator's ground truth, with the real models (see Results)
 - [ ] Phone camera tested on the physical mock line
+
+## Results
+
+End-to-end run on the live Meta Model API, Nov 3 2026: 10 random clearances, 3 leftovers each, judged against
+where the simulator actually put them. `window.clearline.evaluateEndToEnd(10, 3)` in the browser console reruns it.
+
+| | Count |
+|---|---|
+| Leftovers hidden | 30 |
+| Visible to at least one camera | 28 (the other 2 sat in listed blind spots → manual check) |
+| Raised by change detection | 28 of 28 |
+| Confirmed **leftover** by SAM 3.1 + Muse Spark | **26 of 28** |
+| Flagged **unclear** (operator checks by eye) | 2 of 28 |
+| Dismissed as "belongs" (a miss) | **0** |
+| False alarms | 3, all specks marked "unclear", none marked "leftover" |
+| AI errors | 0 |
+| Average scan, 16 cameras | about 20 s |
+| Cost per clearance | about $0.06 |
+
+By item type: capsules 7/7, labels 7/7, cartons 1/1, vials 7/8 (1 unclear), tablets 4/5 (1 unclear). Stage 1
+alone (change detection, no AI) caught 106 of 106 visible items with 0 false alarms over 30 random scenarios.
+
+Limits worth knowing: this is a simulated room, so real-plant lighting, reflections and camera noise will
+differ (the phone camera path exists for that, and learns each pixel's own flicker). The clearance record is a
+prototype, not a validated 21 CFR Part 11 system.
 
 ## Run it
 
