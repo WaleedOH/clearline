@@ -21,7 +21,7 @@ ClearLine puts fixed cameras on the line and lets Meta's models watch every area
 (checklist reasoning), both called through the **Meta Model API** at `api.meta.ai` from the local server in
 `server/`. No other AI models are used.
 
-**Demo video:** [download from the v1.0 release](https://github.com/WaleedOH/clearline/releases/download/v1.0/clearline-demo-raw.webm) (WebM, 1 min 49 s).
+**Demo video:** [clearline-demo.mp4 on the v1.0 release](https://github.com/WaleedOH/clearline/releases/download/v1.0/clearline-demo.mp4) (2 min, narrated; the narration is a synthetic voice reading my script).
 
 ## What it looks like
 
