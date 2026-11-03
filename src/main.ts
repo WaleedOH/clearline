@@ -442,7 +442,7 @@ async function refreshApiStatus() {
   try {
     const s = await (await fetch('/api/status')).json();
     $('api-status').textContent = s.metaApi
-      ? `Meta API connected · ${s.samCalls}/${s.samCallLimit} SAM calls used (≈ $${s.estimatedCostUsd})`
+      ? `Meta API connected · ${s.samCalls} SAM 3.1 + ${s.museCalls} Muse Spark calls this run (≈ $${s.spentUsd} of a $${s.spendLimitUsd} cap)`
       : 'Meta API not connected yet: waiting for the API key. Change detection works without it.';
   } catch {
     $('api-status').textContent = 'Local API not reachable.';
