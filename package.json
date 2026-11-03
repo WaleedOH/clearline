@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:phone": "vite --mode phone",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "stand-in": "node scripts/meta-stand-in.mjs"
@@ -18,7 +17,6 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/three": "^0.186.0",
-    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   },

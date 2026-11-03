@@ -48,11 +48,6 @@ export interface DetectOptions {
   minPixels?: number;
 }
 
-/**
- * Real cameras. Their per-pixel flicker is learned when the clean picture is taken (see
- * setReference with several frames), so the fixed threshold can stay low and tiny items survive.
- */
-export const LIVE_CAMERA: DetectOptions = { threshold: 10, minPixels: 2 };
 /** A pixel must change by this many times its own learned flicker to count. */
 const NOISE_SIGMAS = 4;
 

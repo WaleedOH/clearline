@@ -31,7 +31,7 @@ production. Nothing on the line catches a clearance failure; people do.
 
 ```mermaid
 flowchart LR
-    C[16 fixed cameras<br/>+ phone cameras] --> D[1 · Change detection<br/>local, no AI]
+    C[16 fixed cameras] --> D[1 · Change detection<br/>local, no AI]
     D -->|changed regions,<br/>located in the room| S[2 · SAM 3.1<br/>what is it, exactly where]
     S --> M[3 · Muse Spark 1.3<br/>leftover · belongs · unclear]
     M --> R[Control room<br/>alerts · re-check · manual checks]
@@ -78,9 +78,7 @@ the simulator actually put them. `window.clearline.evaluateEndToEnd(10, 3)` in t
 
 By item type: capsules 7/7, labels 7/7, cartons 1/1, vials 7/8 (1 unclear), tablets 4/5 (1 unclear).
 Stage 1 alone (change detection, no AI) caught 106 of 106 visible items with 0 false alarms over 30 random
-scenarios. The phone camera path was tested with a simulated phone feed (JPEG uploads once a second): it
-raised a single tablet with no noise alarms and reported a bumped camera instead of false alerts. It has not
-yet been tested on a physical mock line.
+scenarios.
 
 ### What tuning on the live models taught us
 
@@ -115,20 +113,6 @@ To use Meta's models, copy `.env.example` to `.env` and add your Meta Model API 
 every call to Meta's models once the estimated spend for the run reaches it ($2 by default; a clearance costs
 about $0.06). The key stays on the server; the browser never sees it.
 
-### Phone cameras
-
-```bash
-npm run dev:phone
-```
-
-Serves ClearLine over HTTPS on the local network (phones only allow camera access on secure pages; the
-certificate is self-signed, so each device asks to trust it once). The control room shows the phone address and a
-4-digit join code. On the phone: open the address, enter the code, prop it up facing the area, then press
-**Set clean picture** on its tile while the area is clean. The clean picture is learned over a few seconds,
-including how much each pixel flickers, so small items are caught without noise alarms; a bumped camera gives a
-warning instead of false alerts. Only phone picture uploads are accepted from the network; everything else,
-including every call that spends credits, answers the computer running ClearLine only.
-
 ### Testing the AI path offline
 
 [`scripts/meta-stand-in.mjs`](scripts/meta-stand-in.mjs) is a local stand-in for the Meta Model API. It checks
@@ -150,8 +134,7 @@ META_API_BASE=http://localhost:5199/v1 MODEL_API_KEY=test npx vite --port 5180
 | [`src/pipeline/checklists.ts`](src/pipeline/checklists.ts) | Per-area checklists, camera-to-area map, SAM prompts |
 | [`src/ui/controlRoom.ts`](src/ui/controlRoom.ts) | Control room: camera grid, multi-camera fusion, findings, manual checks, QA, record |
 | [`src/clearance/run.ts`](src/clearance/run.ts) | The clearance run model and its history |
-| [`src/phone/`](src/phone) | Phone camera page and feeds |
-| [`server/`](server) | Local API: Meta key, SAM 3.1 and Muse Spark clients, spend cap, phone uploads |
+| [`server/`](server) | Local API: Meta key, SAM 3.1 and Muse Spark clients, spend cap |
 | [`src/main.ts`](src/main.ts) | Wires it together, plus the evaluation runners (`evaluateChangeDetection`, `evaluateEndToEnd`) |
 
 Stack: TypeScript, Three.js, Vite. No database, no cloud: the whole system runs on one computer, which is how
@@ -159,11 +142,9 @@ a plant would want it; only the AI calls leave the building.
 
 ## Limits and what's next
 
-- This is a simulated room. Real-plant lighting, reflections and camera noise will differ; the phone camera
-  path exists for that and is the next thing to validate on a physical mock line.
+- This is a simulated room. Real-plant lighting, reflections and camera noise will differ, so the next step is
+  a pilot with real cameras on a mock line, then a real one.
 - The clearance record is a prototype, not a validated 21 CFR Part 11 system with electronic signatures.
-- Next: SAM 3.1 video tracking for continuous watching between scans, and Muse Voice Transcribe for
-  hands-free "removed, re-check" from gloved operators.
 
 ## Credits and disclosures
 

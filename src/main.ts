@@ -9,7 +9,6 @@ import {
 } from './plant/cameras';
 import { ChangeDetector, type Region } from './pipeline/change';
 import { ControlRoom } from './ui/controlRoom';
-import { PhoneFeeds } from './phone/feeds';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -348,29 +347,20 @@ function locate(cameraId: string, region: Region): { location: [number, number, 
   return { location: [p.x, p.y, p.z], where };
 }
 
-// Real phone cameras join the control room alongside the simulated ones.
-const phoneFeeds = new PhoneFeeds((feed) => controlRoom.addCamera(feed));
 const plantCamById = new Map(plantCams.map((c) => [c.id, c]));
 
 const controlRoom = new ControlRoom({
-  // Phones aren't calibrated, so they have no room location and nothing to remove in the simulator.
-  locate: (cameraId, region) => (plantCamById.has(cameraId) ? locate(cameraId, region) : null),
-  simulateRemoval: (cameraId, region) => (plantCamById.has(cameraId) ? simulateRemoval(cameraId, region) : 0),
+  locate,
+  simulateRemoval,
   cams: plantCams,
-  draw: (cam, canvas) => {
-    const plant = plantCamById.get(cam.id);
-    if (plant) camRenderer.drawTo(plant, canvas); else phoneFeeds.draw(cam.id, canvas);
-  },
-  capture: (cam) => {
-    const plant = plantCamById.get(cam.id);
-    return plant ? camRenderer.captureCanvas(plant) : phoneFeeds.capture(cam.id);
-  },
+  draw: (cam, canvas) => camRenderer.drawTo(plantCamById.get(cam.id)!, canvas),
+  capture: (cam) => camRenderer.captureCanvas(plantCamById.get(cam.id)!),
   detector,
   blindSpots,
   apiStatus: async () => {
     try {
       const s = await (await fetch('/api/status')).json();
-      return { connected: s.metaApi === true, standIn: s.testStandIn === true, phone: s.phone };
+      return { connected: s.metaApi === true, standIn: s.testStandIn === true };
     } catch {
       return { connected: false, standIn: false };
     }
@@ -463,7 +453,7 @@ Object.assign(window, {
       refreshTruth();
       return it.id;
     },
-    /** One camera's current view as a JPEG data URL, as a phone would send it. */
+    /** One camera's current view as a JPEG data URL. */
     jpeg: (cameraId: string) => camRenderer.captureCanvas(plantCamById.get(cameraId)!).toDataURL('image/jpeg', 0.85),
     clear: () => { leftovers.clear(); syncPins(); refreshTruth(); },
     capture: captureAll,
@@ -473,7 +463,7 @@ Object.assign(window, {
     evaluateChangeDetection,
     evaluateEndToEnd,
     /** Internals, for tests in the browser console. */
-    debug: { detector, phoneFeeds, controlRoom },
+    debug: { detector, controlRoom },
   },
 });
 

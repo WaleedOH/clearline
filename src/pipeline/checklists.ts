@@ -57,15 +57,7 @@ export const SAM_PROMPTS = [
   'printed paper label', 'small glass vial', 'small rectangular package',
 ];
 
-/** Phone cameras watch the real mock line: a tray standing in for a stretch of conveyor. */
-const MOCK_TRAY: AreaChecklist = {
-  area: 'Mock line tray',
-  belongs: ['empty metal tray or surface', 'tray edges and rims'],
-  mustNotBe: PRODUCT_LEFTOVERS,
-};
-
 export function checklistsFor(cameraId: string): AreaChecklist[] {
-  if (cameraId.startsWith('PHONE-')) return [MOCK_TRAY];
   const areas = CAMERA_AREAS[cameraId] ?? [];
   return CHECKLISTS.filter((c) => areas.includes(c.area));
 }
